@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}预览 - 薪资计算 - 路易小姐{% endblock %}
+
+{% block content %}
+<!-- 统计概览 -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 animate-in">
+        <div class="card-flooks text-center p-4">
+            <div class="stat-label mb-1">👥 员工人数</div>
+            <div class="stat-number" style="color:var(--primary)">{{ data|length }}</div>
+        </div>
+    </div>
+    <div class="col-md-3 animate-in animate-in-delay-1">
+        <div class="card-flooks text-center p-4">
+            <div class="stat-label mb-1">💰 应发总额</div>
+            <div class="stat-number" style="color:#00B894">
+                ¥{{ "%.2f"|format(data|sum(attribute='gross')) }}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 animate-in animate-in-delay-2">
+        <div class="card-flooks text-center p-4">
+            <div class="stat-label mb-1">📉 扣款总额</div>
+            <div class="stat-number" style="color:#D63031">
+                ¥{{ "%.2f"|format(data|sum(attribute='deductions')) }}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 animate-in animate-in-delay-3">
+        <div class="card-flooks text-center p-4">
+            <div class="stat-label mb-1">💵 实发总额</div>
+            <div class="stat-number">
+                ¥{{ "%.2f"|format(data|sum(attribute='net')) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 操作栏 -->
+<div class="card-flooks mb-4 animate-in">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <span class="badge badge-soft" style="font-size:0.85rem;">
+                <i class="bi bi-calendar3"></i> {{ data[0].ref_month.strftime('%Y年%m月') if data else '' }}
+            </span>
+            <span class="badge badge-soft ms-2" style="font-size:0.85rem;">
+                <i class="bi bi-shield-fill-check"></i> 社保基数 ¥{{ "%.0f"|format(social_base) }}
+            </span>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/export?social_base={{ social_base }}" class="btn btn-gradient" id="exportBtn">
+                <i class="bi bi-download"></i> 导出 Excel
+            </a>
+            <a href="/" class="btn btn-outline-gradient">
+                <i class="bi bi-arrow-left"></i> 重新上传
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- 数据表格 -->
+<div class="card-flooks animate-in animate-in-delay-1">
+    <div class="card-header">
+        <i class="bi bi-table"></i> 工资明细
+        <span class="badge badge-gradient ms-2">{{ data|length }} 人</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-wrapper">
+            <div class="table-scroll">
+                <table class="table-flooks" id="salaryTable">
+                    <thead>
+                        <tr>
+                            <th>姓名</th>
+                            <th>工号</th>
+                            <th>身份证号</th>
+                            <th>入职日期</th>
+                            <th>手机号</th>
+                            <th>应出勤</th>
+                            <th>实际出勤</th>
+                            <th>基本工资</th>
+                            <th>绩效</th>
+                            <th>加班费</th>
+                            <th>销售提成</th>
+                            {% if all_subsidies %}
+                            {% for sub in all_subsidies %}
+                            <th>{{ sub }}</th>
+                            {% endfor %}
+                            {% endif %}
+                            <th>社保基数</th>
+                            <th>养老</th>
+                            <th>医疗</th>
+                            <th>失业</th>
+                            <th>公积金</th>
+                            <th>个税</th>
+                            <th>应发合计</th>
+                            <th>扣款合计</th>
+                            <th style="background:var(--secondary)">实发金额</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in data %}
+                        <tr>
+                            <td><strong>{{ d.name }}</strong></td>
+                            <td>{{ d.employee_id }}</td>
+                            <td style="font-family:monospace; font-size:0.8rem;">{{ d.id_card }}</td>
+                            <td>{{ d.hire_date.strftime('%Y-%m-%d') }}</td>
+                            <td style="font-family:monospace; font-size:0.8rem;">{{ d.phone }}</td>
+                            <td class="fw-medium">{{ d.scheduled_days }}天</td>
+                            <td class="fw-medium">{{ d.actual_days }}天</td>
+                            <td class="fw-medium">¥{{ "%.2f"|format(d.base_pay) }}</td>
+                            <td>¥{{ "%.2f"|format(d.performance) if d.performance > 0 else '-' }}</td>
+                            <td>¥{{ "%.2f"|format(d.overtime) if d.overtime > 0 else '-' }}</td>
+                            <td>¥{{ "%.2f"|format(d.commission) if d.commission > 0 else '-' }}</td>
+                            {% if all_subsidies %}
+                            {% for sub in all_subsidies %}
+                            <td>
+                                {% set val = d.subsidies.get(sub, 0) %}
+                                {% if val > 0 %}¥{{ "%.2f"|format(val) }}{% else %}-{% endif %}
+                            </td>
+                            {% endfor %}
+                            {% endif %}
+                            <td>{{ "%.0f"|format(d.social_base) }}</td>
+                            <td>¥{{ "%.2f"|format(d.social_pension) }}</td>
+                            <td>¥{{ "%.2f"|format(d.social_medical) }}</td>
+                            <td>¥{{ "%.2f"|format(d.social_unemployment) }}</td>
+                            <td>{% if d.housing_fund > 0 %}¥{{ "%.2f"|format(d.housing_fund) }}{% else %}/{% endif %}</td>
+                            <td>{% if d.tax > 0 %}¥{{ "%.2f"|format(d.tax) }}{% else %}/{% endif %}</td>
+                            <td class="fw-bold" style="color:#00B894">¥{{ "%.2f"|format(d.gross) }}</td>
+                            <td class="fw-bold" style="color:#D63031">¥{{ "%.2f"|format(d.deductions) }}</td>
+                            <td class="fw-bold" style="color:var(--secondary); font-size:1.05rem;">
+                                ¥{{ "%.2f"|format(d.net) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+document.getElementById('exportBtn')?.addEventListener('click', function(e) {
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> 导出中...';
+});
+</script>
+{% endblock %}
