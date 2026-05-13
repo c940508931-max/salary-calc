@@ -49,8 +49,10 @@ TEMPLATE_COLUMNS = [
     ("入职日期", 14),
     ("手机号", 16),
     ("应出勤天数", 12),
+    ("请假/调休天数", 14),
     ("实际出勤天数", 14),
     ("基本工资", 12),
+    ("总薪资", 12),
     ("岗位绩效", 12),
     ("加班费", 10),
     ("销售提成", 12),
@@ -229,8 +231,10 @@ def create_template(workbook=None) -> Workbook:
         "M",       # 入职日期
         "M",       # 手机号
         "A",       # 应出勤天数
-        "M",       # 实际出勤天数
-        "M",       # 基本工资（月薪）
+        "M",       # 请假/调休天数
+        "A",       # 实际出勤天数
+        "A",       # 基本工资
+        "M",       # 总薪资
         "M",       # 岗位绩效
         "M",       # 加班费
         "M",       # 销售提成
@@ -299,7 +303,7 @@ def create_template(workbook=None) -> Workbook:
     example = [
         "张三", "LY0001", "330102199001011234",
         date(2026, 4, 1), "+86 13800138000",
-        None, 30, 13000, 2000, 0, 500,   # 应出勤天数留空（自动算）
+        None, 0, None, None, 15000,   # 应出勤=自动, 请假=0, 实际出勤=自动, 基本工资=自动, 总薪资=15000
     ]
     subsidy_example = [300, 200, 0, 0, 0]
     tail_example = [5000, None, None, None, 0, 240, None]
@@ -348,7 +352,8 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
     for idx, h in enumerate(headers):
         h_lower = h.lower().replace(" ", "")
         if h_lower in ("姓名", "工号", "身份证号", "入职日期", "手机号",
-                        "应出勤天数", "实际出勤天数", "基本工资", "岗位绩效",
+                        "应出勤天数", "请假/调休天数", "实际出勤天数",
+                        "基本工资", "总薪资", "岗位绩效",
                         "加班费", "销售提成", "社保基数", "养老保险", "医疗保险",
                         "失业保险", "住房公积金", "个人所得税", "实发金额"):
             col_map[h] = idx
@@ -365,7 +370,6 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
             continue
 
         hire_date = parse_date(row[col_map.get("入职日期", 3)] if col_map.get("入职日期", 3) < len(row) else None)
-        actual_days = int(parse_float(row[col_map.get("实际出勤天数", 6)] if col_map.get("实际出勤天数", 6) < len(row) else 0))
 
         if hire_date is None:
             continue
@@ -383,21 +387,30 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
 
         # 应出勤天数 = 从入职到当月底
         scheduled_days = get_work_days_from_hire(ref)
-        if scheduled_days < actual_days:
-            scheduled_days = actual_days  # 填的如果更大就用填的
 
-        # 基本工资（用户填的是月薪）
-        monthly_salary = parse_float(row[col_map.get("基本工资", 7)] if col_map.get("基本工资", 7) < len(row) else 0)
+        # 请假/调休天数（手动填）
+        leave_days = int(parse_float(row[col_map.get("请假/调休天数", 6)] if col_map.get("请假/调休天数", 6) < len(row) else 0))
+
+        # 实际出勤天数 = 应出勤 - 请假/调休（自动计算，最小0）
+        actual_days = max(scheduled_days - leave_days, 0)
+
+        # 月薪（手动填，用于基本工资折算）
+        monthly_salary = parse_float(row[col_map.get("基本工资", 8)] if col_map.get("基本工资", 8) < len(row) else 0)
+
+        # 基本工资 = 月薪 ÷ 当月总天数 × 实际出勤天数（自动）
         base_pay = calc_proportional_salary(monthly_salary, actual_days, month_days)
 
+        # 总薪资（手动填）
+        total_salary = parse_float(row[col_map.get("总薪资", 9)] if col_map.get("总薪资", 9) < len(row) else 0)
+
         # 绩效
-        performance = parse_float(row[col_map.get("岗位绩效", 8)] if col_map.get("岗位绩效", 8) < len(row) else 0)
+        performance = parse_float(row[col_map.get("岗位绩效", 10)] if col_map.get("岗位绩效", 10) < len(row) else 0)
 
         # 加班费
-        overtime = parse_float(row[col_map.get("加班费", 9)] if col_map.get("加班费", 9) < len(row) else 0)
+        overtime = parse_float(row[col_map.get("加班费", 11)] if col_map.get("加班费", 11) < len(row) else 0)
 
         # 销售提成
-        commission = parse_float(row[col_map.get("销售提成", 10)] if col_map.get("销售提成", 10) < len(row) else 0)
+        commission = parse_float(row[col_map.get("销售提成", 12)] if col_map.get("销售提成", 12) < len(row) else 0)
 
         # 补贴（动态列）
         subsidies = {}
@@ -414,13 +427,13 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
         social = calc_social_insurance(social_base)
 
         # 公积金（手动填）
-        housing_fund = parse_float(row[col_map.get("住房公积金", 16)] if col_map.get("住房公积金", 16) < len(row) else 0)
+        housing_fund = parse_float(row[col_map.get("住房公积金", 18)] if col_map.get("住房公积金", 18) < len(row) else 0)
 
         # 个税
-        tax = parse_float(row[col_map.get("个人所得税", 17)] if col_map.get("个人所得税", 17) < len(row) else 0)
+        tax = parse_float(row[col_map.get("个人所得税", 19)] if col_map.get("个人所得税", 19) < len(row) else 0)
 
-        # 应发合计
-        gross = base_pay + performance + overtime + commission + subsidy_total
+        # 应发合计 = 总薪资（用户填写的总额）
+        gross = total_salary
         # 扣款合计
         deductions = social["养老保险"] + social["医疗保险"] + social["失业保险"] + housing_fund + tax
         # 实发
@@ -437,10 +450,12 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
             "hire_date": hire_date,
             "phone": phone,
             "scheduled_days": scheduled_days,
+            "leave_days": leave_days,
             "actual_days": actual_days,
             "month_days": month_days,
             "monthly_salary": monthly_salary,
             "base_pay": base_pay,
+            "total_salary": total_salary,
             "performance": performance,
             "overtime": overtime,
             "commission": commission,
@@ -515,8 +530,10 @@ def export_to_excel(data: list[dict], social_base: float) -> BytesIO:
             d["hire_date"],
             d["phone"],
             d["scheduled_days"],
+            d.get("leave_days", 0),
             d["actual_days"],
             d["base_pay"],
+            d.get("total_salary", 0),
             d["performance"],
             d["overtime"],
             d["commission"],
