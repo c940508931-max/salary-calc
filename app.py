@@ -387,8 +387,8 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
 
         month_days = get_month_days(ref)
 
-        # 应出勤天数 = 从入职到当月底
-        scheduled_days = get_work_days_from_hire(ref)
+        # 应出勤天数 = 从入职日到当月底（含入职日）
+        scheduled_days = get_work_days_from_hire(hire_date)
 
         # 请假/调休天数（手动填）
         leave_days = int(parse_float(row[col_map.get("请假/调休天数", 6)] if col_map.get("请假/调休天数", 6) < len(row) else 0))
