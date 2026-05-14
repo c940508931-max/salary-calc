@@ -396,14 +396,11 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
         # 实际出勤天数 = 应出勤 - 请假/调休（自动计算，最小0）
         actual_days = max(scheduled_days - leave_days, 0)
 
-        # 月薪（手动填，用于基本工资折算）
-        monthly_salary = parse_float(row[col_map.get("基本工资", 8)] if col_map.get("基本工资", 8) < len(row) else 0)
-
-        # 基本工资 = 月薪 ÷ 当月总天数 × 实际出勤天数（自动）
-        base_pay = calc_proportional_salary(monthly_salary, actual_days, month_days)
-
         # 总薪资（手动填）
         total_salary = parse_float(row[col_map.get("总薪资", 9)] if col_map.get("总薪资", 9) < len(row) else 0)
+
+        # 基本工资 = 总薪资 ÷ 当月总天数 × 实际出勤天数（自动）
+        base_pay = calc_proportional_salary(total_salary, actual_days, month_days)
 
         # 绩效
         performance = parse_float(row[col_map.get("岗位绩效", 10)] if col_map.get("岗位绩效", 10) < len(row) else 0)
@@ -425,8 +422,11 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
 
         subsidy_total = sum(subsidies.values())
 
-        # 社保
-        social = calc_social_insurance(social_base)
+        # 社保 — 当月15号后（不含15号）入职的不缴纳保险
+        if hire_date.day <= 15:
+            social = calc_social_insurance(social_base)
+        else:
+            social = {"养老保险": 0, "医疗保险": 0, "失业保险": 0}
 
         # 公积金（手动填）
         housing_fund = parse_float(row[col_map.get("住房公积金", 18)] if col_map.get("住房公积金", 18) < len(row) else 0)
@@ -434,8 +434,8 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
         # 个税
         tax = parse_float(row[col_map.get("个人所得税", 19)] if col_map.get("个人所得税", 19) < len(row) else 0)
 
-        # 应发合计 = 总薪资（用户填写的总额）
-        gross = total_salary
+        # 应发合计 = 基本工资 + 绩效 + 加班费 + 提成 + 补贴
+        gross = base_pay + performance + overtime + commission + subsidy_total
         # 扣款合计
         deductions = social["养老保险"] + social["医疗保险"] + social["失业保险"] + housing_fund + tax
         # 实发
@@ -455,7 +455,6 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
             "leave_days": leave_days,
             "actual_days": actual_days,
             "month_days": month_days,
-            "monthly_salary": monthly_salary,
             "base_pay": base_pay,
             "total_salary": total_salary,
             "performance": performance,
