@@ -2,20 +2,25 @@
 薪资计算工具 - Flask 本地应用
 底薪+绩效+提成+补贴，按自然日折算，自动算社保
 """
-import os
-import json
 import calendar
+import json
+import logging
+import os
+import time
+import uuid
 from datetime import datetime, date
 from io import BytesIO
 from pathlib import Path
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    send_file, flash, jsonify, session as flask_session
+    send_file, flash, session as flask_session
 )
 from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Font, Alignment, Border, Side, PatternFill, numbers
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # 配置
@@ -30,6 +35,23 @@ app.secret_key = os.environ.get("SECRET_KEY", "salary-calc-secret-key-change-in-
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_DIR)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB
 
+# 预览数据缓存（文件存储，避免 session 大小限制）
+PREVIEW_CACHE_DIR = BASE_DIR / "_preview_cache"
+os.makedirs(PREVIEW_CACHE_DIR, exist_ok=True)
+CACHE_MAX_AGE = 3600  # 1小时后清理
+
+
+def _cleanup_old_files():
+    """清理超过1小时的旧上传文件和缓存"""
+    now = time.time()
+    for d, max_age in [(UPLOAD_DIR, CACHE_MAX_AGE), (PREVIEW_CACHE_DIR, CACHE_MAX_AGE)]:
+        for f in d.iterdir():
+            if f.is_file() and now - f.stat().st_mtime > max_age:
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
+
 # 社保比例（个人部分）
 SOCIAL_INSURANCE_RATES = {
     "养老保险": 0.08,   # 8%
@@ -39,6 +61,14 @@ SOCIAL_INSURANCE_RATES = {
 
 # 补贴选项
 SUBSIDY_OPTIONS = ["餐补", "交通补贴", "全勤奖", "住房补贴", "通讯补贴"]
+
+# 常用样式常量
+_THIN_BORDER = Border(
+    left=Side(style="thin"),
+    right=Side(style="thin"),
+    top=Side(style="thin"),
+    bottom=Side(style="thin"),
+)
 
 # 模板列定义（对应导出时的表头）
 # (列名, 宽度)
@@ -130,56 +160,24 @@ def parse_float(value) -> float:
     return 0.0
 
 
-def get_subsidy_columns(headers: list) -> list:
-    """从表头中提取补贴列名（在销售提成之后、社保基数之前的列）"""
-    subsidy_cols = []
-    in_subsidy = False
-    for h in headers:
-        h_str = str(h or "").strip()
-        if h_str == "销售提成":
-            in_subsidy = True
-            continue
-        if h_str == "社保基数":
-            break
-        if in_subsidy and h_str:
-            subsidy_cols.append(h_str)
-    return subsidy_cols
-
-
-# ---------------------------------------------------------------------------
-# 创建 Excel 模板
-# ---------------------------------------------------------------------------
-
 def _style_header(ws, row, col_count):
     """给表头行设置样式"""
     header_font = Font(name="微软雅黑", bold=True, size=10, color="FFFFFF")
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    thin_border = Border(
-        left=Side(style="thin"),
-        right=Side(style="thin"),
-        top=Side(style="thin"),
-        bottom=Side(style="thin"),
-    )
     for col in range(1, col_count + 1):
         cell = ws.cell(row=row, column=col)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = header_align
-        cell.border = thin_border
+        cell.border = _THIN_BORDER
 
 
 def _style_data_cell(cell, is_date=False):
     """给数据单元格设置样式"""
     cell.font = Font(name="微软雅黑", size=10)
     cell.alignment = Alignment(horizontal="center", vertical="center")
-    thin_border = Border(
-        left=Side(style="thin"),
-        right=Side(style="thin"),
-        top=Side(style="thin"),
-        bottom=Side(style="thin"),
-    )
-    cell.border = thin_border
+    cell.border = _THIN_BORDER
     if is_date:
         cell.number_format = "YYYY-MM-DD"
 
@@ -216,7 +214,7 @@ def create_template(workbook=None) -> Workbook:
     assert len(full_headers) == 25, f"表头数应为25，实际{len(full_headers)}"
 
     # 写标题行（第1行）
-    ws.cell(row=1, column=1, value="路易小姐薪资表 - 📌 灰色底色 = 自动计算（不要填写）| 白色底色 = 请手动填写")
+    ws.cell(row=1, column=1, value="路易小姐薪资表 - 📌 浅蓝底色 = 自动计算（不要填写）| 白色底色 = 请手动填写")
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(full_headers))
     title_cell = ws.cell(row=1, column=1)
     title_cell.font = Font(name="微软雅黑", bold=True, size=11, color="FFFFFF")
@@ -280,25 +278,18 @@ def create_template(workbook=None) -> Workbook:
             cell.fill = manual_fill
             cell.font = Font(name="微软雅黑", bold=True, size=10, color="2F5496")
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.border = Border(
-            left=Side(style="thin"), right=Side(style="thin"),
-            top=Side(style="thin"), bottom=Side(style="thin"),
-        )
+        cell.border = _THIN_BORDER
 
     # 说明行（第3行）
     hint_font = Font(name="微软雅黑", bold=True, size=9, italic=True)
     manual_text_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")  # 浅绿
     auto_text_fill = PatternFill(start_color="FCE4EC", end_color="FCE4EC", fill_type="solid")    # 浅粉
-    thin_border = Border(
-        left=Side(style="thin"), right=Side(style="thin"),
-        top=Side(style="thin"), bottom=Side(style="thin"),
-    )
     for col_idx, ctype in enumerate(col_types, 1):
         cell = ws.cell(row=3, column=col_idx, value=col_hints[ctype])
         cell.font = hint_font
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.fill = auto_text_fill if ctype == "A" else manual_text_fill
-        cell.border = thin_border
+        cell.border = _THIN_BORDER
     ws.row_dimensions[3].height = 22
 
     # 图例说明行（第4行）
@@ -331,7 +322,7 @@ def create_template(workbook=None) -> Workbook:
             cell = ws.cell(row=5, column=col_idx, value=val)
             cell.font = Font(name="微软雅黑", size=10, bold=True)
         cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = thin_border
+        cell.border = _THIN_BORDER
         if col_idx == 4:
             cell.number_format = "YYYY-MM-DD"
     ws.row_dimensions[5].height = 22
@@ -627,6 +618,9 @@ def preview():
         flash("请上传 .xlsx 或 .xls 文件", "error")
         return redirect(url_for("index"))
 
+    # 清理旧文件
+    _cleanup_old_files()
+
     # 保存上传文件
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     save_path = UPLOAD_DIR / f"{timestamp}_{file.filename}"
@@ -635,6 +629,7 @@ def preview():
     try:
         data = parse_uploaded_excel(str(save_path), social_base, ref_month)
     except Exception as e:
+        logger.exception("解析上传文件失败")
         flash(f"解析文件出错：{str(e)}", "error")
         return redirect(url_for("index"))
 
@@ -649,26 +644,54 @@ def preview():
             if k not in all_subsidies:
                 all_subsidies.append(k)
 
-    # 存 session 用于导出
-    flask_session["preview_data"] = [
-        {k: (v.isoformat() if isinstance(v, date) else v) for k, v in d.items()}
-        for d in data
-    ]
-    flask_session["social_base"] = social_base
+    # 缓存到文件（避免 session 大小限制）
+    cache_key = str(uuid.uuid4())
+    cache_data = {
+        "data": [
+            {k: (v.isoformat() if isinstance(v, date) else v) for k, v in d.items()}
+            for d in data
+        ],
+        "social_base": social_base,
+        "ref_month": ref_month,
+    }
+    cache_path = PREVIEW_CACHE_DIR / f"{cache_key}.json"
+    with open(cache_path, "w", encoding="utf-8") as f:
+        json.dump(cache_data, f, ensure_ascii=False)
+    flask_session["preview_cache_key"] = cache_key
 
     return render_template("preview.html",
                          data=data,
                          all_subsidies=all_subsidies,
                          social_base=social_base,
                          social_insurance_rates=SOCIAL_INSURANCE_RATES,
-                         ref_month=ref_month)
+                         ref_month=ref_month,
+                         cache_key=cache_key)
 
 
 @app.route("/export")
 def export():
     """导出计算结果"""
-    raw = flask_session.get("preview_data", [])
-    social_base = flask_session.get("social_base", 5000)
+    cache_key = request.args.get("key") or flask_session.get("preview_cache_key")
+    if not cache_key:
+        flash("没有可导出的数据", "error")
+        return redirect(url_for("index"))
+
+    cache_path = PREVIEW_CACHE_DIR / f"{cache_key}.json"
+    if not cache_path.exists():
+        flash("数据已过期，请重新上传", "error")
+        return redirect(url_for("index"))
+
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            cache_data = json.load(f)
+    except Exception as e:
+        logger.exception("读取缓存数据失败")
+        flash("数据读取失败，请重新上传", "error")
+        return redirect(url_for("index"))
+
+    raw = cache_data.get("data", [])
+    social_base = cache_data.get("social_base", 5000)
+    ref_month = cache_data.get("ref_month", "")
 
     if not raw:
         flash("没有可导出的数据", "error")
@@ -684,11 +707,21 @@ def export():
         data.append(d)
 
     output = export_to_excel(data, social_base)
+
+    # 生成含月份的文件名
+    filename = "薪资计算结果.xlsx"
+    if ref_month:
+        try:
+            ref_dt = datetime.strptime(ref_month, "%Y-%m")
+            filename = f"薪资计算结果_{ref_dt.year}年{ref_dt.month}月.xlsx"
+        except ValueError:
+            pass
+
     return send_file(
         output,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name="薪资计算结果.xlsx",
+        download_name=filename,
     )
 
 
