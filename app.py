@@ -606,8 +606,10 @@ def download_template():
     )
 
 
-@app.route("/preview", methods=["POST"])
+@app.route("/preview", methods=["GET", "POST"])
 def preview():
+    if request.method == "GET":
+        return redirect(url_for("index"))
     """上传 Excel 并预览计算结果"""
     social_base = parse_float(request.form.get("social_base", 5000))
     ref_month = request.form.get("ref_month", "")
