@@ -2,70 +2,76 @@
 {% block title %}首页 - 薪资计算 - 路易小姐{% endblock %}
 
 {% block content %}
+<h1 class="visually-hidden">路易小姐薪资计算工具</h1>
 <div class="row g-4">
     <!-- 左侧：全局设置 -->
-    <div class="col-lg-5">
+    <section class="col-lg-5" aria-labelledby="settings-heading">
         <div class="card-flooks animate-in">
-            <div class="card-header">
-                <i class="bi bi-gear-fill"></i> 全局设置
-            </div>
+            <h2 class="card-header" id="settings-heading">
+                <i class="bi bi-gear-fill" aria-hidden="true"></i> 全局设置
+            </h2>
             <div class="card-body">
                 <form id="settingsForm" method="POST" action="/preview" enctype="multipart/form-data">
                     <!-- 社保基数 -->
                     <div class="mb-4">
-                        <label class="form-label">
-                            <i class="bi bi-shield-fill-check" style="color:var(--primary)"></i>
+                        <label class="form-label" for="socialBase">
+                            <i class="bi bi-shield-fill-check icon-primary" aria-hidden="true"></i>
                             社保基数
                         </label>
                         <div class="input-group">
-                            <span class="input-group-text" style="border-radius:var(--radius-sm) 0 0 var(--radius-sm); border:2px solid var(--border); border-right:none; background:var(--card-bg); font-weight:600;">¥</span>
-                            <input type="number" class="form-control" id="socialBase" name="social_base"
+                            <span class="input-group-text input-group-prefix" aria-label="人民币">¥</span>
+                            <input type="number" class="form-control input-no-left-border" id="socialBase" name="social_base"
                                    value="{{ request.form.get('social_base', 5000) }}" min="0" step="100"
-                                   style="border-left:none;">
+                                   aria-label="社保基数金额" aria-describedby="socialPreview">
                         </div>
                         <div class="d-flex gap-3 mt-2" id="socialPreview">
-                            <small class="text-muted">养老 <span class="fw-bold" style="color:var(--text-primary)" data-rate="0.08">8%</span></small>
-                            <small class="text-muted">医疗 <span class="fw-bold" style="color:var(--text-primary)" data-rate="0.02">2%</span></small>
-                            <small class="text-muted">失业 <span class="fw-bold" style="color:var(--text-primary)" data-rate="0.005">0.5%</span></small>
+                            <small class="text-muted">养老 <span class="fw-bold text-primary-color" data-rate="0.08">8%</span></small>
+                            <small class="text-muted">医疗 <span class="fw-bold text-primary-color" data-rate="0.02">2%</span></small>
+                            <small class="text-muted">失业 <span class="fw-bold text-primary-color" data-rate="0.005">0.5%</span></small>
                         </div>
-                        <div class="mt-1" id="socialAmounts">
-                            <small class="text-muted">养老 <span class="fw-bold" style="color:var(--primary)">¥400.00</span></small>
-                            <small class="text-muted ms-2">医疗 <span class="fw-bold" style="color:var(--primary)">¥100.00</span></small>
-                            <small class="text-muted ms-2">失业 <span class="fw-bold" style="color:var(--primary)">¥25.00</span></small>
+                        <div class="mt-1" id="socialAmounts" aria-live="polite">
+                            <small class="text-muted">养老 <span class="fw-bold text-primary">¥400.00</span></small>
+                            <small class="text-muted ms-2">医疗 <span class="fw-bold text-primary">¥100.00</span></small>
+                            <small class="text-muted ms-2">失业 <span class="fw-bold text-primary">¥25.00</span></small>
                         </div>
                     </div>
 
                     <!-- 薪资月份 -->
                     <div class="mb-4">
-                        <label class="form-label">
-                            <i class="bi bi-calendar-event-fill" style="color:var(--primary)"></i>
+                        <label class="form-label" for="refMonth">
+                            <i class="bi bi-calendar-event-fill icon-primary" aria-hidden="true"></i>
                             薪资月份
                         </label>
                         <input type="month" class="form-control" id="refMonth" name="ref_month"
-                               value="{{ request.form.get('ref_month', '') }}">
+                               value="{{ request.form.get('ref_month', '') }}"
+                               aria-label="选择薪资计算月份">
                         <small class="text-muted mt-1 d-block">
-                            <i class="bi bi-info-circle"></i> 用于计算应出勤天数和按日折算
+                            <i class="bi bi-info-circle" aria-hidden="true"></i> 用于计算应出勤天数和按日折算
                         </small>
                     </div>
 
                     <!-- 上传区域 -->
                     <div class="mb-3">
-                        <label class="form-label">
-                            <i class="bi bi-upload"></i>
+                        <span class="form-label" id="upload-label">
+                            <i class="bi bi-upload" aria-hidden="true"></i>
                             上传工资表
-                        </label>
-                        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-                            <i class="bi bi-file-earmark-spreadsheet-fill"></i>
-                            <p class="mb-1 fw-medium" style="color:var(--text-primary)" id="uploadText">点击选择 Excel 文件</p>
-                            <p class="small text-muted">支持 .xlsx 格式</p>
-                            <input type="file" class="d-none" id="fileInput" name="file" accept=".xlsx" required>
+                        </span>
+                        <div class="upload-zone" id="uploadZone" role="button" tabindex="0"
+                             aria-labelledby="upload-label" aria-describedby="upload-format-hint"
+                             onclick="document.getElementById('fileInput').click()"
+                             onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); this.click(); }">
+                            <i class="bi bi-file-earmark-spreadsheet-fill" aria-hidden="true"></i>
+                            <p class="mb-1 fw-medium text-primary-color" id="uploadText">点击选择 Excel 文件</p>
+                            <p class="small text-muted" id="upload-format-hint">支持 .xlsx 格式，最大 16MB</p>
+                            <input type="file" class="visually-hidden" id="fileInput" name="file" accept=".xlsx" required
+                                   aria-label="选择 Excel 工资表文件">
                         </div>
                     </div>
 
                     <!-- 操作按钮 -->
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-gradient btn-lg" id="calcBtn">
-                            <i class="bi bi-calculator-fill"></i> 计算薪资
+                            <i class="bi bi-calculator-fill" aria-hidden="true"></i> 计算薪资
                         </button>
                     </div>
                 </form>
@@ -73,110 +79,112 @@
         </div>
 
         <!-- 功能列表 -->
-        <div class="card-flooks mt-4 animate-in animate-in-delay-1">
-            <div class="card-header">
-                <i class="bi bi-stars"></i> 支持功能
-            </div>
+        <section class="card-flooks mt-4 animate-in animate-in-delay-1" aria-labelledby="features-heading">
+            <h2 class="card-header" id="features-heading">
+                <i class="bi bi-stars" aria-hidden="true"></i> 支持功能
+            </h2>
             <div class="card-body">
-                <div class="d-flex flex-wrap gap-2 mb-3">
+                <div class="d-flex flex-wrap gap-2 mb-3" aria-label="补贴类型列表">
                     <span class="badge badge-soft">🏷️ 餐补</span>
                     <span class="badge badge-soft">🚗 交通补贴</span>
                     <span class="badge badge-soft">⭐ 全勤奖</span>
                     <span class="badge badge-soft">🏠 住房补贴</span>
                     <span class="badge badge-soft">📞 通讯补贴</span>
                 </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <span class="badge badge-green"><i class="bi bi-check-lg"></i> 按自然日折算工资</span>
-                    <span class="badge badge-green"><i class="bi bi-check-lg"></i> 入职当月自动算应出勤</span>
-                    <span class="badge badge-green"><i class="bi bi-check-lg"></i> 社保自动按比例计算</span>
-                    <span class="badge badge-green"><i class="bi bi-check-lg"></i> 公积金/个税手动填写</span>
-                    <span class="badge badge-green"><i class="bi bi-check-lg"></i> 导出样式与模板一致</span>
+                <div class="d-flex flex-wrap gap-2" aria-label="系统能力列表">
+                    <span class="badge badge-green"><i class="bi bi-check-lg" aria-hidden="true"></i> 按自然日折算工资</span>
+                    <span class="badge badge-green"><i class="bi bi-check-lg" aria-hidden="true"></i> 入职当月自动算应出勤</span>
+                    <span class="badge badge-green"><i class="bi bi-check-lg" aria-hidden="true"></i> 社保自动按比例计算</span>
+                    <span class="badge badge-green"><i class="bi bi-check-lg" aria-hidden="true"></i> 公积金/个税手动填写</span>
+                    <span class="badge badge-green"><i class="bi bi-check-lg" aria-hidden="true"></i> 导出样式与模板一致</span>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
+    </section>
 
     <!-- 右侧：使用说明 -->
-    <div class="col-lg-7">
+    <section class="col-lg-7" aria-labelledby="guide-heading">
         <div class="card-flooks animate-in animate-in-delay-1">
-            <div class="card-header">
-                <i class="bi bi-book-fill"></i> 使用说明
-            </div>
+            <h2 class="card-header" id="guide-heading">
+                <i class="bi bi-book-fill" aria-hidden="true"></i> 使用说明
+            </h2>
             <div class="card-body">
                 <!-- 步骤 -->
-                <div class="step-indicator mb-4">
-                    <div class="step-dot active">1</div>
-                    <div class="step-line"></div>
-                    <div class="step-dot pending">2</div>
-                    <div class="step-line"></div>
-                    <div class="step-dot pending">3</div>
-                    <div class="step-line"></div>
-                    <div class="step-dot pending">4</div>
-                </div>
+                <nav aria-label="使用步骤导航">
+                    <div class="step-indicator mb-4">
+                        <span class="step-dot active" aria-current="step">1</span>
+                        <span class="step-line" aria-hidden="true"></span>
+                        <span class="step-dot pending">2</span>
+                        <span class="step-line" aria-hidden="true"></span>
+                        <span class="step-dot pending">3</span>
+                        <span class="step-line" aria-hidden="true"></span>
+                        <span class="step-dot pending">4</span>
+                    </div>
+                </nav>
 
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <div class="d-flex gap-3 p-3" style="background:var(--bg); border-radius:var(--radius-sm);">
-                            <div style="width:36px; height:36px; border-radius:10px; background:var(--gradient-primary); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <article class="step-card">
+                            <div class="step-icon" aria-hidden="true">
                                 <i class="bi bi-download text-white"></i>
                             </div>
                             <div>
-                                <h6 class="fw-bold mb-1" style="font-size:0.85rem;">下载模板</h6>
+                                <h3 class="step-card-title">下载模板</h3>
                                 <p class="small text-muted mb-0">点击下方按钮下载 Excel 模板</p>
                             </div>
-                        </div>
+                        </article>
                     </div>
                     <div class="col-md-6">
-                        <div class="d-flex gap-3 p-3" style="background:var(--bg); border-radius:var(--radius-sm);">
-                            <div style="width:36px; height:36px; border-radius:10px; background:var(--gradient-primary); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <article class="step-card">
+                            <div class="step-icon" aria-hidden="true">
                                 <i class="bi bi-pencil-fill text-white"></i>
                             </div>
                             <div>
-                                <h6 class="fw-bold mb-1" style="font-size:0.85rem;">填写数据</h6>
+                                <h3 class="step-card-title">填写数据</h3>
                                 <p class="small text-muted mb-0">按格式填写员工薪资信息</p>
                             </div>
-                        </div>
+                        </article>
                     </div>
                     <div class="col-md-6">
-                        <div class="d-flex gap-3 p-3" style="background:var(--bg); border-radius:var(--radius-sm);">
-                            <div style="width:36px; height:36px; border-radius:10px; background:var(--gradient-primary); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <article class="step-card">
+                            <div class="step-icon" aria-hidden="true">
                                 <i class="bi bi-sliders2 text-white"></i>
                             </div>
                             <div>
-                                <h6 class="fw-bold mb-1" style="font-size:0.85rem;">设置参数</h6>
+                                <h3 class="step-card-title">设置参数</h3>
                                 <p class="small text-muted mb-0">设社保基数和薪资月份</p>
                             </div>
-                        </div>
+                        </article>
                     </div>
                     <div class="col-md-6">
-                        <div class="d-flex gap-3 p-3" style="background:var(--bg); border-radius:var(--radius-sm);">
-                            <div style="width:36px; height:36px; border-radius:10px; background:var(--gradient-primary); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <article class="step-card">
+                            <div class="step-icon" aria-hidden="true">
                                 <i class="bi bi-file-earmark-check-fill text-white"></i>
                             </div>
                             <div>
-                                <h6 class="fw-bold mb-1" style="font-size:0.85rem;">计算 & 导出</h6>
+                                <h3 class="step-card-title">计算 &amp; 导出</h3>
                                 <p class="small text-muted mb-0">自动计算，在线预览，一键导出</p>
                             </div>
-                        </div>
+                        </article>
                     </div>
                 </div>
 
                 <!-- 下载按钮区域 -->
-                <div class="mt-4 p-4 text-center" style="background:linear-gradient(135deg, rgba(108,92,231,0.05), rgba(162,155,254,0.05)); border-radius:var(--radius-sm);">
-                    <h5 class="fw-bold mb-2">
-                        <i class="bi bi-file-earmark-spreadsheet" style="color:var(--primary)"></i>
+                <div class="download-section">
+                    <h3 class="fw-bold mb-2">
+                        <i class="bi bi-file-earmark-spreadsheet icon-primary" aria-hidden="true"></i>
                         第一步：下载模板
-                    </h5>
+                    </h3>
                     <p class="text-muted small mb-3">下载 Excel 模板，按格式填写员工薪资信息</p>
                     <a href="/download_template" class="btn btn-gradient btn-lg">
-                        <i class="bi bi-download"></i> 下载模板
+                        <i class="bi bi-download" aria-hidden="true"></i> 下载模板
                     </a>
                 </div>
 
                 <!-- 计算规则 -->
-                <div class="mt-4 p-3" style="background:var(--bg); border-radius:var(--radius-sm);">
+                <div class="rule-card">
                     <div class="d-flex align-items-start gap-2">
-                        <i class="bi bi-info-circle-fill" style="color:var(--primary); font-size:1rem; margin-top:2px;"></i>
+                        <i class="bi bi-info-circle-fill icon-primary flex-shrink-0" style="font-size:1rem; margin-top:2px;" aria-hidden="true"></i>
                         <div>
                             <strong style="font-size:0.85rem;">计算规则：</strong>
                             <p class="small text-muted mb-0 mt-1">
@@ -190,13 +198,13 @@
         </div>
 
         <!-- 底部 -->
-        <div class="text-center mt-4 animate-in animate-in-delay-2">
+        <footer class="text-center mt-4 animate-in animate-in-delay-2">
             <small class="text-muted">
-                <i class="bi bi-shield-lock-fill"></i>
+                <i class="bi bi-shield-lock-fill" aria-hidden="true"></i>
                 数据仅存于本地，不会上传到任何服务器
             </small>
-        </div>
-    </div>
+        </footer>
+    </section>
 </div>
 {% endblock %}
 
@@ -213,7 +221,7 @@ document.getElementById('socialBase').addEventListener('input', function() {
     const container = document.getElementById('socialAmounts');
     let html = '';
     for (const [name, rate] of Object.entries(rates)) {
-        html += `<small class="text-muted"><span class="ms-0">${name}</span> <span class="fw-bold" style="color:var(--primary)">¥${(base * rate).toFixed(2)}</span></small> `;
+        html += `<small class="text-muted"><span class="ms-0">${name}</span> <span class="fw-bold text-primary">¥${(base * rate).toFixed(2)}</span></small> `;
     }
     container.innerHTML = html;
 });
@@ -222,7 +230,7 @@ document.getElementById('socialBase').addEventListener('input', function() {
 document.getElementById('fileInput').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {
-        document.getElementById('uploadText').innerHTML = `<i class="bi bi-file-earmark-check-fill" style="color:var(--primary)"></i> ${file.name}`;
+        document.getElementById('uploadText').innerHTML = `<i class="bi bi-file-earmark-check-fill icon-primary" aria-hidden="true"></i> ${file.name}`;
         document.getElementById('uploadZone').style.borderColor = 'var(--primary)';
     }
 });
@@ -242,7 +250,7 @@ uploadZone.addEventListener('drop', function(e) {
     const file = e.dataTransfer.files[0];
     if (file && file.name.endsWith('.xlsx')) {
         document.getElementById('fileInput').files = e.dataTransfer.files;
-        document.getElementById('uploadText').innerHTML = `<i class="bi bi-file-earmark-check-fill" style="color:var(--primary)"></i> ${file.name}`;
+        document.getElementById('uploadText').innerHTML = `<i class="bi bi-file-earmark-check-fill icon-primary" aria-hidden="true"></i> ${file.name}`;
         this.style.borderColor = 'var(--primary)';
     }
 });
