@@ -269,14 +269,21 @@ def create_template(workbook=None) -> Workbook:
 
     # 第2行：列名
     # 第3行：说明行
-    _style_header(ws, 2, len(full_headers))
     for col_idx, ((name, width), ctype) in enumerate(zip(full_headers, col_types), 1):
-        # 列名（第2行）
+        # 列名（第2行）— 手动列白底深字，自动列浅灰蓝底白字
         cell = ws.cell(row=2, column=col_idx, value=name)
         ws.column_dimensions[get_column_letter(col_idx)].width = width
-        # 给每个表头单元格单独设背景色
-        hint_fill = auto_fill if ctype == "A" else manual_fill
-        ws.cell(row=2, column=col_idx).fill = hint_fill
+        if ctype == "A":
+            cell.fill = auto_fill
+            cell.font = Font(name="微软雅黑", bold=True, size=10, color="FFFFFF")
+        else:
+            cell.fill = manual_fill
+            cell.font = Font(name="微软雅黑", bold=True, size=10, color="2F5496")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
 
     # 说明行（第3行）
     hint_font = Font(name="微软雅黑", bold=True, size=9, italic=True)
