@@ -212,6 +212,9 @@ def create_template(workbook=None) -> Workbook:
     ]
     full_headers.extend(fixed_tail)
 
+    # 确认表头数与类型数一致
+    assert len(full_headers) == 25, f"表头数应为25，实际{len(full_headers)}"
+
     # 写标题行（第1行）
     ws.cell(row=1, column=1, value="路易小姐薪资表 - 📌 灰色底色 = 自动计算（不要填写）| 白色底色 = 请手动填写")
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(full_headers))
@@ -244,7 +247,7 @@ def create_template(workbook=None) -> Workbook:
         col_types.append("M")
     # 尾部
     tail_types = [
-        "M",       # 社保基数
+        "A",       # 社保基数（跟随网页设置，自动填充）
         "A",       # 养老保险
         "A",       # 医疗保险
         "A",       # 失业保险
@@ -266,11 +269,11 @@ def create_template(workbook=None) -> Workbook:
 
     # 第2行：列名
     # 第3行：说明行
+    _style_header(ws, 2, len(full_headers))
     for col_idx, ((name, width), ctype) in enumerate(zip(full_headers, col_types), 1):
         # 列名（第2行）
         cell = ws.cell(row=2, column=col_idx, value=name)
         ws.column_dimensions[get_column_letter(col_idx)].width = width
-        _style_header(ws, 2, len(full_headers))
         # 给每个表头单元格单独设背景色
         hint_fill = auto_fill if ctype == "A" else manual_fill
         ws.cell(row=2, column=col_idx).fill = hint_fill
@@ -304,6 +307,7 @@ def create_template(workbook=None) -> Workbook:
         "张三", "LY0001", "330102199001011234",
         date(2026, 4, 1), "+86 13800138000",
         None, 0, None, None, 15000,   # 应出勤=自动, 请假=0, 实际出勤=自动, 基本工资=自动, 总薪资=15000
+        300, 200, 0,                   # 岗位绩效, 加班费, 销售提成
     ]
     subsidy_example = [300, 200, 0, 0, 0]
     tail_example = [5000, None, None, None, 0, 240, None]
