@@ -470,11 +470,18 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
 
         subsidy_total = sum(subsidies.values())
 
-        # 社保 — 当月15号后（不含15号）入职的不缴纳保险
-        if hire_date.day <= 15:
-            social = calc_social_insurance(social_base)
+        # 社保 —
+        # 入职当月：15号后（不含15号）入职的不缴纳保险
+        # 入职后月份：正常缴纳
+        if (hire_date.year == ref.year and hire_date.month == ref.month):
+            # 入职当月
+            if hire_date.day <= 15:
+                social = calc_social_insurance(social_base)
+            else:
+                social = {"养老保险": 0, "医疗保险": 0, "失业保险": 0}
         else:
-            social = {"养老保险": 0, "医疗保险": 0, "失业保险": 0}
+            # 入职后的月份 → 正常缴纳
+            social = calc_social_insurance(social_base)
 
         # 公积金（手动填）
         housing_fund = parse_float(row[col_map.get("住房公积金", 18)] if col_map.get("住房公积金", 18) < len(row) else 0)
