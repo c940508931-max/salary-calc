@@ -77,12 +77,14 @@ TEMPLATE_COLUMNS = [
     ("工号", 10),
     ("身份证号", 20),
     ("入职日期", 14),
+    ("转正日期", 14),
     ("手机号", 16),
     ("应出勤天数", 12),
     ("请假/调休天数", 14),
     ("实际出勤天数", 14),
     ("基本工资", 12),
     ("总薪资", 12),
+    ("试用期薪资", 12),
     ("岗位绩效", 12),
     ("加班费", 10),
     ("销售提成", 12),
@@ -211,7 +213,7 @@ def create_template(workbook=None) -> Workbook:
     full_headers.extend(fixed_tail)
 
     # 确认表头数与类型数一致
-    assert len(full_headers) == 25, f"表头数应为25，实际{len(full_headers)}"
+    assert len(full_headers) == 27, f"表头数应为27，实际{len(full_headers)}"
 
     # 写标题行（第1行）
     ws.cell(row=1, column=1, value="路易小姐薪资表 - 📌 浅蓝底色 = 自动计算（不要填写）| 白色底色 = 请手动填写")
@@ -230,12 +232,14 @@ def create_template(workbook=None) -> Workbook:
         "M",       # 工号
         "M",       # 身份证号
         "M",       # 入职日期
+        "M",       # 转正日期（手动填，可留空）
         "M",       # 手机号
         "A",       # 应出勤天数
         "M",       # 请假/调休天数
         "A",       # 实际出勤天数
         "A",       # 基本工资
         "M",       # 总薪资
+        "M",       # 试用期薪资（手动填，可留空）
         "M",       # 岗位绩效
         "M",       # 加班费
         "M",       # 销售提成
@@ -303,8 +307,10 @@ def create_template(workbook=None) -> Workbook:
     # 示例数据行（第5行）
     example = [
         "张三", "LY0001", "330102199001011234",
-        date(2026, 4, 1), "+86 13800138000",
+        date(2026, 4, 1), "",          # 入职日期, 转正日期（空=默认无试用期）
+        "+86 13800138000",
         None, 0, None, None, 15000,   # 应出勤=自动, 请假=0, 实际出勤=自动, 基本工资=自动, 总薪资=15000
+        "",                            # 试用期薪资（空=无试用期）
         300, 200, 0,                   # 岗位绩效, 加班费, 销售提成
     ]
     subsidy_example = [300, 200, 0, 0, 0]
@@ -353,9 +359,9 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
     col_map = {}
     for idx, h in enumerate(headers):
         h_lower = h.lower().replace(" ", "")
-        if h_lower in ("姓名", "工号", "身份证号", "入职日期", "手机号",
+        if h_lower in ("姓名", "工号", "身份证号", "入职日期", "转正日期", "手机号",
                         "应出勤天数", "请假/调休天数", "实际出勤天数",
-                        "基本工资", "总薪资", "岗位绩效",
+                        "基本工资", "总薪资", "试用期薪资", "岗位绩效",
                         "加班费", "销售提成", "社保基数", "养老保险", "医疗保险",
                         "失业保险", "住房公积金", "个人所得税", "实发金额"):
             col_map[h] = idx
@@ -399,8 +405,37 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
         # 总薪资（手动填）
         total_salary = parse_float(row[col_map.get("总薪资", 9)] if col_map.get("总薪资", 9) < len(row) else 0)
 
-        # 基本工资 = 总薪资 ÷ 当月总天数 × 实际出勤天数（自动）
-        base_pay = calc_proportional_salary(total_salary, actual_days, month_days)
+        # ===== 试用期 / 转正判断 =====
+        # 试用期薪资（手动填，留空=无试用期）
+        probation_salary = parse_float(row[col_map.get("试用期薪资", 99)] if col_map.get("试用期薪资", 99) < len(row) else 0)
+        # 转正日期（手动填，留空=无试用期）
+        regular_idx = col_map.get("转正日期", 99)
+        regular_date = parse_date(row[regular_idx] if regular_idx < len(row) else None)
+
+        # 计算当月生效薪资（考虑试用期/转正拆分）
+        has_probation = probation_salary > 0 and regular_date is not None
+        effective_salary = total_salary  # 默认用总薪资
+        probation_note = ""
+
+        if has_probation:
+            ref_month_start = ref.replace(day=1)
+            _, last_day = calendar.monthrange(ref.year, ref.month)
+            ref_month_end = ref.replace(day=last_day)
+
+            if regular_date > ref_month_end:
+                # 整月仍处于试用期
+                effective_salary = probation_salary
+                probation_note = "试用期"
+            elif regular_date >= ref_month_start:
+                # 当月跨转正 → 按天拆分
+                probation_days = (regular_date - ref_month_start).days
+                regular_days = month_days - probation_days
+                effective_salary = (probation_salary * probation_days + total_salary * regular_days) / month_days
+                probation_note = f"试用{probation_days}天+转正{regular_days}天"
+            # else: 已经转正 → 用 total_salary（默认值）
+
+        # 基本工资 = 生效薪资 ÷ 当月总天数 × 实际出勤天数（自动）
+        base_pay = calc_proportional_salary(effective_salary, actual_days, month_days)
 
         # 绩效
         performance = parse_float(row[col_map.get("岗位绩效", 10)] if col_map.get("岗位绩效", 10) < len(row) else 0)
@@ -450,6 +485,10 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
             "employee_id": employee_id,
             "id_card": id_card,
             "hire_date": hire_date,
+            "regular_date": regular_date,
+            "probation_salary": probation_salary,
+            "effective_salary": round(effective_salary, 2),
+            "probation_note": probation_note,
             "phone": phone,
             "scheduled_days": scheduled_days,
             "leave_days": leave_days,
@@ -529,12 +568,14 @@ def export_to_excel(data: list[dict], social_base: float) -> BytesIO:
             d["employee_id"],
             d["id_card"],
             d["hire_date"],
+            d.get("regular_date") or "/",
             d["phone"],
             d["scheduled_days"],
             d.get("leave_days", 0),
             d["actual_days"],
             d["base_pay"],
             d.get("total_salary", 0),
+            d.get("probation_salary", 0),
             d["performance"],
             d["overtime"],
             d["commission"],
