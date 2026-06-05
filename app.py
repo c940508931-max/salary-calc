@@ -99,18 +99,30 @@ def get_month_days(dt: date) -> int:
     return calendar.monthrange(dt.year, dt.month)[1]
 
 
-def get_work_days_from_hire(hire_date: date, ref_date: date = None) -> int:
+def get_work_days_from_hire(hire_date: date, ref_date: date) -> int:
     """
-    计算应出勤天数：从入职日到当月底的自然日天数
-    比如 4月25日入职 → 4月30日，应出勤 = 6天
+    计算应出勤天数：
+    - 尚未入职：返回 0
+    - 入职当月：从入职日到当月底（含入职日）
+    - 入职后月份：整月全勤
+    比如 4月24入职，算4月=7天，算5月=31天
     """
-    if ref_date is None:
-        ref_date = hire_date
-    # 取入职当月的最后一天
-    last_day = calendar.monthrange(hire_date.year, hire_date.month)[1]
-    month_end = date(hire_date.year, hire_date.month, last_day)
-    # 从入职日到当月底（含入职日）
-    return (month_end - hire_date).days + 1
+    ref_last_day = calendar.monthrange(ref_date.year, ref_date.month)[1]
+    ref_month_end = date(ref_date.year, ref_date.month, ref_last_day)
+
+    # 入职日在参考月份之后 → 尚未入职
+    if hire_date > ref_month_end:
+        return 0
+
+    # 入职日期 ≥ 参考月份首日 → 入职当月
+    ref_month_start = ref_date.replace(day=1)
+    if hire_date >= ref_month_start:
+        last_day = calendar.monthrange(hire_date.year, hire_date.month)[1]
+        month_end = date(hire_date.year, hire_date.month, last_day)
+        return (month_end - hire_date).days + 1
+
+    # 入职日在参考月份之前 → 整月全勤
+    return ref_last_day
 
 
 def calc_proportional_salary(monthly_salary: float, work_days: int, month_days: int) -> float:
@@ -393,8 +405,8 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
 
         month_days = get_month_days(ref)
 
-        # 应出勤天数 = 从入职日到当月底（含入职日）
-        scheduled_days = get_work_days_from_hire(hire_date)
+        # 应出勤天数 = 根据入职日和参考月份计算
+        scheduled_days = get_work_days_from_hire(hire_date, ref)
 
         # 请假/调休天数（手动填）
         leave_days = int(parse_float(row[col_map.get("请假/调休天数", 6)] if col_map.get("请假/调休天数", 6) < len(row) else 0))
