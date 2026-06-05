@@ -255,7 +255,7 @@ def create_template(workbook=None) -> Workbook:
         "A",       # 应出勤天数（自动）
         "M",       # 请假天数
         "M",       # 调休天数
-        "A",       # 实际出勤天数（自动：应出勤+调休-请假）
+        "A",       # 实际出勤天数（自动：应出勤-请假）
         "A",       # 基本工资（自动）
         "M",       # 转正薪资
         "M",       # 试用期薪资（可留空）
@@ -433,8 +433,8 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
         comp_idx = col_map.get("调休天数", 99)
         comp_days = int(parse_float(row[comp_idx] if comp_idx < len(row) else 0))
 
-        # 实际出勤天数 = 应出勤 + 调休 - 请假（自动，最小0）
-        actual_days = max(scheduled_days + comp_days - leave_days, 0)
+        # 实际出勤天数 = 应出勤 - 请假（自动，最小0）；调休仅作记录
+        actual_days = max(scheduled_days - leave_days, 0)
 
         # 转正薪资（手动填，兼容旧模板的"总薪资"）
         total_salary_idx = col_map.get("转正薪资")
