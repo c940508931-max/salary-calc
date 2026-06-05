@@ -12,7 +12,7 @@
     </div>
     <div class="col-md-3 animate-in animate-in-delay-1">
         <div class="card-flooks text-center p-4">
-            <div class="stat-label mb-1">💰 总薪资总额</div>
+            <div class="stat-label mb-1">💰 转正薪资总额</div>
             <div class="stat-number" style="color:#6C5CE7">
                 ¥{{ "%.2f"|format(data|sum(attribute='total_salary')) }}
             </div>
@@ -86,7 +86,7 @@
                             <th>请假/调休</th>
                             <th>实际出勤</th>
                             <th>基本工资</th>
-                            <th style="background:var(--secondary)">总薪资</th>
+                            <th style="background:var(--secondary)">转正薪资</th>
                             <th style="background:var(--secondary)">试用期薪资</th>
                             <th>绩效</th>
                             <th>加班费</th>

@@ -83,7 +83,7 @@ TEMPLATE_COLUMNS = [
     ("请假/调休天数", 14),
     ("实际出勤天数", 14),
     ("基本工资", 12),
-    ("总薪资", 12),
+    ("转正薪资", 12),
     ("试用期薪资", 12),
     ("岗位绩效", 12),
     ("加班费", 10),
@@ -238,7 +238,7 @@ def create_template(workbook=None) -> Workbook:
         "M",       # 请假/调休天数
         "A",       # 实际出勤天数
         "A",       # 基本工资
-        "M",       # 总薪资
+        "M",       # 转正薪资
         "M",       # 试用期薪资（手动填，可留空）
         "M",       # 岗位绩效
         "M",       # 加班费
@@ -309,7 +309,7 @@ def create_template(workbook=None) -> Workbook:
         "张三", "LY0001", "330102199001011234",
         date(2026, 4, 1), "",          # 入职日期, 转正日期（空=默认无试用期）
         "+86 13800138000",
-        None, 0, None, None, 15000,   # 应出勤=自动, 请假=0, 实际出勤=自动, 基本工资=自动, 总薪资=15000
+        None, 0, None, None, 15000,   # 应出勤=自动, 请假=0, 实际出勤=自动, 基本工资=自动, 转正薪资=15000
         "",                            # 试用期薪资（空=无试用期）
         300, 200, 0,                   # 岗位绩效, 加班费, 销售提成
     ]
@@ -361,7 +361,7 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
         h_lower = h.lower().replace(" ", "")
         if h_lower in ("姓名", "工号", "身份证号", "入职日期", "转正日期", "手机号",
                         "应出勤天数", "请假/调休天数", "实际出勤天数",
-                        "基本工资", "总薪资", "试用期薪资", "岗位绩效",
+                        "基本工资", "总薪资", "转正薪资", "试用期薪资", "岗位绩效",
                         "加班费", "销售提成", "社保基数", "养老保险", "医疗保险",
                         "失业保险", "住房公积金", "个人所得税", "实发金额"):
             col_map[h] = idx
@@ -402,8 +402,9 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
         # 实际出勤天数 = 应出勤 - 请假/调休（自动计算，最小0）
         actual_days = max(scheduled_days - leave_days, 0)
 
-        # 总薪资（手动填）
-        total_salary = parse_float(row[col_map.get("总薪资", 9)] if col_map.get("总薪资", 9) < len(row) else 0)
+        # 转正薪资（手动填，兼容旧模板的"总薪资"）
+        total_salary_idx = col_map.get("转正薪资") or col_map.get("总薪资", 10)
+        total_salary = parse_float(row[total_salary_idx] if total_salary_idx is not None and total_salary_idx < len(row) else 0)
 
         # ===== 试用期 / 转正判断 =====
         # 试用期薪资（手动填，留空=无试用期）
@@ -414,7 +415,7 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
 
         # 计算当月生效薪资（考虑试用期/转正拆分）
         has_probation = probation_salary > 0 and regular_date is not None
-        effective_salary = total_salary  # 默认用总薪资
+        effective_salary = total_salary  # 默认用转正薪资
         probation_note = ""
 
         if has_probation:
