@@ -60,7 +60,7 @@ SOCIAL_INSURANCE_RATES = {
 }
 
 # 补贴选项
-SUBSIDY_OPTIONS = ["餐补", "交通补贴", "全勤奖", "住房补贴", "通讯补贴"]
+SUBSIDY_OPTIONS = ["餐补", "交通补贴", "住房补贴", "通讯补贴"]
 
 # 常用样式常量
 _THIN_BORDER = Border(
@@ -231,7 +231,7 @@ def create_template(workbook=None) -> Workbook:
     full_headers.extend(fixed_tail)
 
     # 确认表头数与类型数一致
-    assert len(full_headers) == 33, f"表头数应为33，实际{len(full_headers)}"
+    assert len(full_headers) == 32, f"表头数应为32，实际{len(full_headers)}"
 
     # 写标题行（第1行）
     ws.cell(row=1, column=1, value="路易小姐薪资表 - 📌 浅蓝底色 = 自动计算（不要填写）| 白色底色 = 请手动填写")
@@ -338,7 +338,7 @@ def create_template(workbook=None) -> Workbook:
         300, 200, 0,                   # 岗位绩效, 加班费, 销售提成
         0, 0,                          # 补卡次数, 迟到早退(分钟)
     ]
-    subsidy_example = [300, 200, 0, 0, 0]
+    subsidy_example = [300, 200, 0, 0]
     tail_example = [5000, None, None, None, 0, 240, None, None, None, None]
 
     row_data = example + subsidy_example + tail_example
@@ -424,7 +424,9 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
         scheduled_days = get_work_days_from_hire(hire_date, ref)
 
         # 请假天数（手动填，兼容旧模板的"请假/调休天数"）
-        leave_idx = col_map.get("请假天数") or col_map.get("请假/调休天数", 7)
+        leave_idx = col_map.get("请假天数")
+        if leave_idx is None:
+            leave_idx = col_map.get("请假/调休天数", 7)
         leave_days = int(parse_float(row[leave_idx] if leave_idx is not None and leave_idx < len(row) else 0))
 
         # 调休天数（手动填）
@@ -435,7 +437,9 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
         actual_days = max(scheduled_days + comp_days - leave_days, 0)
 
         # 转正薪资（手动填，兼容旧模板的"总薪资"）
-        total_salary_idx = col_map.get("转正薪资") or col_map.get("总薪资", 11)
+        total_salary_idx = col_map.get("转正薪资")
+        if total_salary_idx is None:
+            total_salary_idx = col_map.get("总薪资", 11)
         total_salary = parse_float(row[total_salary_idx] if total_salary_idx is not None and total_salary_idx < len(row) else 0)
 
         # ===== 试用期 / 转正判断 =====
@@ -504,7 +508,7 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
 
         # ==== 补卡扣款 ====
         # 超 2 次后每超 1 次扣半天底薪
-        daily_base_salary = base_salary / month_days if month_days > 0 else 0
+        daily_base_salary = round(base_salary / month_days, 4) if month_days > 0 else 0
         comp_card_deduction = 0
         if comp_card_count > 2:
             extra_cards = comp_card_count - 2
@@ -822,6 +826,8 @@ def export():
     for d in raw:
         if isinstance(d.get("hire_date"), str):
             d["hire_date"] = date.fromisoformat(d["hire_date"])
+        if isinstance(d.get("regular_date"), str) and d.get("regular_date"):
+            d["regular_date"] = date.fromisoformat(d["regular_date"])
         if isinstance(d.get("ref_month"), str):
             d["ref_month"] = date.fromisoformat(d["ref_month"])
         data.append(d)
