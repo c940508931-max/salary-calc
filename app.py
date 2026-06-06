@@ -223,6 +223,7 @@ def create_template(workbook=None) -> Workbook:
         ("失业保险", 12),
         ("住房公积金", 12),
         ("个人所得税", 12),
+        ("请假扣款", 10),
         ("全勤奖", 10),
         ("补卡扣款", 10),
         ("迟到扣款", 10),
@@ -231,7 +232,7 @@ def create_template(workbook=None) -> Workbook:
     full_headers.extend(fixed_tail)
 
     # 确认表头数与类型数一致
-    assert len(full_headers) == 32, f"表头数应为32，实际{len(full_headers)}"
+    assert len(full_headers) == 33, f"表头数应为33，实际{len(full_headers)}"
 
     # 写标题行（第1行）
     ws.cell(row=1, column=1, value="路易小姐薪资表 - 📌 浅蓝底色 = 自动计算（不要填写）| 白色底色 = 请手动填写")
@@ -276,6 +277,7 @@ def create_template(workbook=None) -> Workbook:
         "A",       # 失业保险
         "M",       # 住房公积金
         "M",       # 个人所得税
+        "A",       # 请假扣款（自动）
         "A",       # 全勤奖（自动）
         "A",       # 补卡扣款（自动）
         "A",       # 迟到扣款（自动）
@@ -339,7 +341,7 @@ def create_template(workbook=None) -> Workbook:
         0, 0,                          # 补卡次数, 迟到早退(分钟)
     ]
     subsidy_example = [300, 200, 0, 0]
-    tail_example = [5000, None, None, None, 0, 240, None, None, None, None]
+    tail_example = [5000, None, None, None, 0, 240, None, None, None, None, None]
 
     row_data = example + subsidy_example + tail_example
     for col_idx, (val, ctype) in enumerate(zip(row_data, col_types), 1):
@@ -390,7 +392,7 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
                         "加班费", "销售提成", "补卡次数", "迟到早退(分钟)",
                         "社保基数", "养老保险", "医疗保险",
                         "失业保险", "住房公积金", "个人所得税", "实发金额",
-                        "全勤奖", "补卡扣款", "迟到扣款"):
+                        "请假扣款", "全勤奖", "补卡扣款", "迟到扣款"):
             col_map[h] = idx
         elif h in SUBSIDY_OPTIONS:
             col_map.setdefault("补贴列", []).append(idx)
@@ -471,6 +473,9 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
 
         # 基本工资 = 底薪 ÷ 当月总天数 × 实际出勤天数（自动）
         base_pay = calc_proportional_salary(base_salary, actual_days, month_days)
+
+        # 请假扣款 = 底薪 ÷ 月总天数 × 请假天数（仅展示，已体现在基本工资中）
+        leave_deduction = round(base_salary / month_days * leave_days, 2) if leave_days > 0 else 0
 
         # ===== 补卡次数 =====
         card_idx = col_map.get("补卡次数", 99)
@@ -567,6 +572,7 @@ def parse_uploaded_excel(filepath: str, social_base: float, ref_month: str) -> l
             "base_pay": base_pay,
             "total_salary": total_salary,
             "full_attendance_bonus": full_attendance_bonus,
+            "leave_deduction": leave_deduction,
             "comp_card_count": comp_card_count,
             "comp_card_deduction": comp_card_deduction,
             "actual_late_minutes": actual_late_minutes,
@@ -604,12 +610,8 @@ def export_to_excel(data: list[dict], social_base: float) -> BytesIO:
     ws = wb.active
     ws.title = "工资表"
 
-    # 收集所有补贴列名
-    all_subsidies = []
-    for d in data:
-        for k in d.get("subsidies", {}):
-            if k not in all_subsidies:
-                all_subsidies.append(k)
+    # 补贴列：始终包含全部补贴选项（与模板一致）
+    all_subsidies = list(SUBSIDY_OPTIONS)
 
     # 构建完整表头
     base_headers = [h[0] for h in TEMPLATE_COLUMNS]
@@ -621,7 +623,7 @@ def export_to_excel(data: list[dict], social_base: float) -> BytesIO:
             result_headers.extend(all_subsidies)
 
     tail_headers = ["社保基数", "养老保险", "医疗保险", "失业保险", "住房公积金", "个人所得税",
-                     "全勤奖", "补卡扣款", "迟到扣款", "实发金额"]
+                     "请假扣款", "全勤奖", "补卡扣款", "迟到扣款", "实发金额"]
     result_headers.extend(tail_headers)
 
     # 写标题行
@@ -672,6 +674,7 @@ def export_to_excel(data: list[dict], social_base: float) -> BytesIO:
             d["social_unemployment"],
             d["housing_fund"] if d["housing_fund"] > 0 else "/",
             d["tax"],
+            d.get("leave_deduction", 0),
             d.get("full_attendance_bonus", 0),
             d.get("comp_card_deduction", 0),
             d.get("late_deduction", 0),

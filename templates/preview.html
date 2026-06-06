@@ -106,6 +106,7 @@
                             <th>公积金</th>
                             <th>个税</th>
                             <th>应发合计</th>
+                            <th>请假扣款</th>
                             <th>全勤奖</th>
                             <th>补卡扣款</th>
                             <th>迟到扣款</th>
@@ -161,6 +162,13 @@
                             <td>{% if d.housing_fund > 0 %}¥{{ "%.2f"|format(d.housing_fund) }}{% else %}/{% endif %}</td>
                             <td>{% if d.tax > 0 %}¥{{ "%.2f"|format(d.tax) }}{% else %}/{% endif %}</td>
                             <td class="fw-bold" style="color:#00B894">¥{{ "%.2f"|format(d.gross) }}</td>
+                            <td class="fw-medium" style="color:#D63031">
+                                {% if d.leave_deduction > 0 %}
+                                    ¥{{ "%.2f"|format(d.leave_deduction) }}
+                                {% else %}
+                                    0
+                                {% endif %}
+                            </td>
                             <td class="fw-medium" style="color:#00B894">
                                 {{ "¥%.2f"|format(d.full_attendance_bonus) if d.full_attendance_bonus > 0 else '¥0' }}
                                 {% if d.leave_days > 0 or d.comp_card_count > 2 %}
