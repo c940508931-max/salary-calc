@@ -660,12 +660,15 @@ def export_to_excel(data: list[dict], social_base: float) -> BytesIO:
             d["performance"],
             d["overtime"],
             d["commission"],
-            d.get("comp_card_count", 0),
-            d.get("actual_late_minutes", 0),
         ]
-        # 补贴
+        # 补贴（销售提成之后插入，与表头顺序一致）
         for sub in all_subsidies:
             row_data.append(d.get("subsidies", {}).get(sub, 0))
+        # 考勤相关列（补贴之后）
+        row_data.extend([
+            d.get("comp_card_count", 0),
+            d.get("actual_late_minutes", 0),
+        ])
         # 尾部
         row_data.extend([
             social_base,
